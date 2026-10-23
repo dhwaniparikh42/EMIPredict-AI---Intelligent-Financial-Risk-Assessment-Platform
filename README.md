@@ -1,4 +1,26 @@
-# EMIPredict AI: Data Cleaning, Validation & Splits
+# EMIPredict AI: Intelligent Financial Risk Assessment Platform
+
+**Project Name:** EMIPredict AI  
+
+**Authors:** Shahjahan Iqbal, Purva Maurya , Prakhar Singh, Dhwani Parikh, Harsh Bhalodiya
+**Last Updated:** [23 Oct 2026]
+
+---
+
+## Table of Contents
+
+- [EMIPredict AI: Data Cleaning, Validation & Splits](#emipredict-ai-data-cleaning-validation--splits)
+- [Project Layout](#project-layout)
+- [Run It Locally](#run-it-locally)
+- [What the Pipeline Does](#what-the-pipeline-does)
+- [Using the Data in Your Own Code](#using-the-data-in-your-own-code)
+- [EMIPredict Frontend Integration](#emipredict-frontend-integration)
+  - [What Changed](#what-changed)
+- [Rules for Teammates](#rules-for-teammates)
+- [Pushing to the Shared GitHub Repo](#pushing-to-the-shared-github-repo)
+
+---
+
 
 Step 1 of the project: turns the raw 404,800-row EMI dataset into clean,
 validated, leakage-free **train / val / test** files. 
@@ -75,6 +97,25 @@ X_train, y_clf_train, y_reg_train = get_xy(train)
 
 `get_xy` removes **both** targets from `X`, so the classifier never sees
 `max_monthly_emi` and the regressor never sees `emi_eligibility`.
+
+# EMIPredict frontend integration
+
+This frontend is adapted to the team's **regression-only** training output.
+
+## What changed
+
+- `pages/1_Predict.py` loads `best_regression_model.joblib` and passes the raw 25-feature DataFrame directly to the fitted scikit-learn pipeline. It does not apply a second preprocessing pipeline.
+- The classifier and label encoder dependencies have been removed from the prediction flow. Eligibility is explicitly shown as unavailable until a classifier exists.
+- `pages/3_Model_Performance.py` reads `test_metrics.json`, `model_info.json`, and `regression_comparison.csv` from the backend artifact directory.
+- `Home.py` reads the backend artifact metadata and `reports/data_quality_report.json`.
+- The Explorer and Data Management pages gracefully explain when `data/EMI_sample.csv` is missing.
+- `.gitignore` excludes the large model file while leaving JSON/CSV metric artifacts trackable.
+
+The backend artifact directory should contain:
+- `best_regression_model.joblib`
+- `model_info.json`
+- `test_metrics.json`
+- `regression_comparison.csv`
 
 ## Rules for teammates
 
