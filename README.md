@@ -1,8 +1,7 @@
 # EMIPredict AI: Data Cleaning, Validation & Splits
 
 Step 1 of the project: turns the raw 404,800-row EMI dataset into clean,
-validated, leakage-free **train / val / test** files that the whole team can use
-for EDA, feature engineering, modelling and MLflow.
+validated, leakage-free **train / val / test** files. 
 
 ## Project layout
 
@@ -97,4 +96,3 @@ git push -u origin main
 ```
 
 For teammates: `git pull`, create `data/raw/`, drop in the CSV, run `python run_pipeline.py`.
-Since the seed is fixed, everyone gets **identical** splits.
