@@ -1,0 +1,20 @@
+# data is large -> never commit it, share via Drive / DVC / Git LFS instead
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# env / caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
+
+# experiment tracking & models (later steps)
+mlruns/
+mlflow.db
+*.pkl
+*.joblib
