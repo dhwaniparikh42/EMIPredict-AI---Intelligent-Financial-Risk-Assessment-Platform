@@ -1,0 +1,32 @@
+{
+  "model_name": "RandomForest",
+  "target": "max_monthly_emi",
+  "input_features": [
+    "age",
+    "monthly_salary",
+    "years_of_employment",
+    "monthly_rent",
+    "family_size",
+    "dependents",
+    "school_fees",
+    "college_fees",
+    "travel_expenses",
+    "groceries_utilities",
+    "other_monthly_expenses",
+    "current_emi_amount",
+    "credit_score",
+    "bank_balance",
+    "emergency_fund",
+    "requested_amount",
+    "requested_tenure",
+    "gender",
+    "marital_status",
+    "education",
+    "employment_type",
+    "company_type",
+    "house_type",
+    "existing_loans",
+    "emi_scenario"
+  ],
+  "validation_rmse": 1263.9256886960238
+}
