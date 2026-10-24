@@ -13,8 +13,15 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 
-# experiment tracking & models (later steps)
+# experiment tracking (local MLflow store: heavy, regenerate with train.py)
 mlruns/
+mlartifacts/
 mlflow.db
+mlflow_server/
 *.pkl
-*.joblib
+
+# models: only the two small deployable "best" models are committed
+models/*
+!models/.gitkeep
+!models/best_classifier.joblib
+!models/best_regressor.joblib

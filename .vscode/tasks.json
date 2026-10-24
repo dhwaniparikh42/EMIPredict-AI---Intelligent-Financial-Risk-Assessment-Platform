@@ -1,0 +1,58 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1) Clean data + make splits",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} run_pipeline.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "1b) Check the train/val/test split",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} check_splits.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "2a) Train models (quick test, 20k rows)",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} train.py --sample 20000",
+      "problemMatcher": []
+    },
+    {
+      "label": "2b) Train models (full data)",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} train.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "3) Open MLflow dashboard",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "4) Run tests",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} -m pytest -q",
+      "problemMatcher": []
+    },
+    {
+      "label": "5) Push to GitHub",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} push_to_github.py -m \"${input:commitMessage}\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "5b) Push to my own branch",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} push_to_github.py -m \"${input:commitMessage}\" --branch \"${input:branchName}\"",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    { "id": "commitMessage", "type": "promptString", "description": "Commit message", "default": "Update project" },
+    { "id": "branchName", "type": "promptString", "description": "Branch name (e.g. feature/eda-yourname)", "default": "feature/my-work" }
+  ]
+}
