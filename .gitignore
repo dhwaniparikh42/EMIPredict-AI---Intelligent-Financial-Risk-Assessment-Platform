@@ -25,3 +25,5 @@ models/*
 !models/.gitkeep
 !models/best_classifier.joblib
 !models/best_regressor.joblib
+
+.env

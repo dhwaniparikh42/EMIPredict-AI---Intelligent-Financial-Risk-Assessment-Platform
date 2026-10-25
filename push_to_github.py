@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 
 WARN_MB, BLOCK_MB = 50, 95            # GitHub rejects files > 100 MB
 NEVER_COMMIT = ("data/raw/", "data/processed/", "mlflow.db", "mlartifacts/", ".venv/")
+# a real (non-placeholder) MLflow/DagsHub token written into ANY file, e.g. pasted into .env.example by mistake
+SECRET_RE = re.compile(r"MLFLOW_TRACKING_PASSWORD\s*=\s*[\"']?(?!<)[^\s\"'<]{8,}")
 
 
 def git(*args, check=True, capture=True) -> subprocess.CompletedProcess:
@@ -80,11 +83,22 @@ def main() -> None:
     if not staged:
         print("[i] Nothing new to commit.")
     else:
-        bad = [f for f in staged if f.startswith(NEVER_COMMIT)]
+        bad = [f for f in staged if f.startswith(NEVER_COMMIT) or os.path.basename(f) == ".env"]
         if bad:
             git("reset", "-q")
             die("These should never be committed (data / local MLflow files):\n  " + "\n  ".join(bad[:10])
                 + "\nCheck your .gitignore, then run again.")
+        leaks = []
+        for f in staged:
+            if os.path.isfile(f) and os.path.getsize(f) < 1_000_000:
+                with open(f, encoding="utf-8", errors="ignore") as fh:
+                    if SECRET_RE.search(fh.read()):
+                        leaks.append(f)
+        if leaks:
+            git("reset", "-q")
+            die("A real MLflow/DagsHub token seems to be written in:\n  " + "\n  ".join(leaks)
+                + "\nPut real values ONLY in .env (git-ignored). In files like .env.example keep the "
+                  "<placeholders>. Fix the file, then run again.")
         big = [(f, os.path.getsize(f) / 1e6) for f in staged if os.path.exists(f)]
         too_big = [(f, s) for f, s in big if s > BLOCK_MB]
         if too_big:

@@ -13,8 +13,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import tempfile
 import time
 import warnings
+from pathlib import Path
 
 import joblib
 import matplotlib
@@ -38,7 +40,10 @@ from xgboost import XGBClassifier, XGBRegressor
 
 from src import config as C
 from src.data_loader import get_xy, load_split
+from src.env import load_env
 from src.features import build_pipeline
+
+load_env()  # reads MLFLOW_* settings from a local .env file (if present)
 
 warnings.filterwarnings("ignore")
 SEED = C.RANDOM_STATE
@@ -156,15 +161,34 @@ def get_experiment(name: str) -> str:
             else mlflow.create_experiment(name))
 
 
-def log_sklearn_model(pipe, signature, registered_name):
-    try:  # MLflow >= 3
-        return mlflow.sklearn.log_model(pipe, name="model", signature=signature,
-                                        registered_model_name=registered_name,
-                                        serialization_format="cloudpickle")
-    except TypeError:  # MLflow 2.x
-        return mlflow.sklearn.log_model(pipe, artifact_path="model", signature=signature,
-                                        registered_model_name=registered_name,
-                                        serialization_format="cloudpickle")
+def log_sklearn_model(pipe, signature, registered_name, run_id, classic=False) -> int:
+    """Log the model to the current run and register it. Returns the registry version.
+
+    Tries MLflow's modern API first. Hosted servers (e.g. DagsHub) can be older and reject it,
+    so on any failure it falls back to the classic route: upload files + register_model.
+    """
+    client = MlflowClient()
+    kw = dict(signature=signature, serialization_format="cloudpickle")
+    if not classic:
+        try:
+            try:  # MLflow >= 3
+                info = mlflow.sklearn.log_model(pipe, name="model",
+                                                registered_model_name=registered_name, **kw)
+            except TypeError:  # MLflow 2.x
+                info = mlflow.sklearn.log_model(pipe, artifact_path="model",
+                                                registered_model_name=registered_name, **kw)
+            version = getattr(info, "registered_model_version", None)
+            if version is None:
+                version = max(int(v.version) for v in client.search_model_versions(f"name='{registered_name}'")
+                              if v.run_id == run_id)
+            return int(version)
+        except Exception as e:  # noqa: BLE001
+            print(f"      [warn] modern model logging failed ({type(e).__name__}); using classic route")
+    with tempfile.TemporaryDirectory() as tmp:
+        model_dir = Path(tmp) / "model"
+        mlflow.sklearn.save_model(pipe, str(model_dir), **kw)
+        mlflow.log_artifacts(str(model_dir), artifact_path="model")
+    return int(mlflow.register_model(f"runs:/{run_id}/model", registered_name).version)
 
 
 def simple_params(model) -> dict:
@@ -231,11 +255,7 @@ def run_task(task: str, train, val, test, args) -> pd.DataFrame:
             plt.close(fig)
 
             sig = infer_signature(X_va.head(50), pipe.predict(X_va.head(50)))
-            info = log_sklearn_model(pipe, sig, registry)
-            version = getattr(info, "registered_model_version", None)
-            if version is None:  # fallback for older MLflow
-                version = max(int(v.version) for v in client.search_model_versions(f"name='{registry}'")
-                              if v.run_id == run.info.run_id)
+            version = log_sklearn_model(pipe, sig, registry, run.info.run_id, args.classic_logging)
             client.set_model_version_tag(registry, str(version), "model_type", name)
 
         results.append({"model": name, "run_id": run.info.run_id, "version": int(version),
@@ -252,30 +272,58 @@ def run_task(task: str, train, val, test, args) -> pd.DataFrame:
     with mlflow.start_run(run_id=best["run_id"]):
         mlflow.log_metrics({f"test_{k}": v for k, v in m_test.items()})
         mlflow.set_tag("selected_as_best", "true")
-    try:
-        client.set_registered_model_alias(registry, "champion", str(int(best["version"])))
-    except Exception as e:  # some hosted MLflow servers are older and have no aliases
-        client.set_model_version_tag(registry, str(int(best["version"])), "champion", "true")
-        print(f"  [warn] server has no model aliases ({type(e).__name__}); tagged champion=true instead")
+    # ----- the registry alias 'champion' only moves if this run beats the current champion
+    version = int(best["version"])
+    if args.sample:
+        promoted = False
+        print("  [info] --sample run (smoke test): registry alias 'champion' NOT changed")
+    else:
+        promoted = maybe_set_champion(client, registry, version, select, higher, float(best[select]))
 
-    print(f"\n  BEST {task}: {best['model']} (registry '{registry}' v{int(best['version'])}, alias 'champion')")
+    status = "alias 'champion'" if promoted else "not promoted"
+    print(f"\n  BEST {task}: {best['model']} (registry '{registry}' v{version}, {status})")
     print("  TEST  " + "  ".join(f"{k}={v:.4f}" for k, v in m_test.items()))
 
-    # ----- save deployable bundle + comparison report
+    # ----- save deployable bundle (+ reports) ONLY for a real champion.
+    # Smoke tests and non-winning runs go to git-ignored files so they can never be committed by accident.
     MODELS_DIR.mkdir(exist_ok=True)
+    kind = "classifier" if is_clf else "regressor"
+    prefix = "best_" if promoted else ("_sample_" if args.sample else "_candidate_")
     bundle = {"task": task, "model_name": best["model"], "pipeline": best_pipe,
               "classes": list(le.classes_) if is_clf else None,
               "feature_columns": list(X_tr.columns), "val_metrics": m_val_of(best),
-              "test_metrics": m_test, "registry": registry, "registry_version": int(best["version"])}
-    out = MODELS_DIR / ("best_classifier.joblib" if is_clf else "best_regressor.joblib")
+              "test_metrics": m_test, "registry": registry, "registry_version": version}
+    out = MODELS_DIR / f"{prefix}{kind}.joblib"
     joblib.dump(bundle, out, compress=3)
     print(f"  saved {out.relative_to(C.ROOT)} ({out.stat().st_size / 1e6:.1f} MB)")
 
-    C.REPORTS_DIR.mkdir(exist_ok=True)
-    table.drop(columns=["run_id"]).to_csv(C.REPORTS_DIR / f"model_comparison_{task}.csv", index=False)
-    (C.REPORTS_DIR / f"best_{task}_test_metrics.json").write_text(
-        json.dumps({"model": best["model"], **m_test}, indent=2))
+    if promoted:
+        C.REPORTS_DIR.mkdir(exist_ok=True)
+        table.drop(columns=["run_id"]).to_csv(C.REPORTS_DIR / f"model_comparison_{task}.csv", index=False)
+        (C.REPORTS_DIR / f"best_{task}_test_metrics.json").write_text(
+            json.dumps({"model": best["model"], **m_test}, indent=2))
     return table
+
+
+def maybe_set_champion(client, registry, version, metric, higher_is_better, new_value) -> bool:
+    """Move alias 'champion' to `version` unless the current champion is at least as good
+    (compared on the same VALIDATION split). Returns True if promoted."""
+    try:
+        cur = client.get_model_version_by_alias(registry, "champion")
+    except Exception:  # no champion yet, or a server without aliases
+        cur = None
+    if cur is not None and str(cur.version) != str(version):
+        old = client.get_run(cur.run_id).data.metrics.get(f"val_{metric}")
+        if old is not None and ((new_value <= old) if higher_is_better else (new_value >= old)):
+            print(f"  [info] current champion v{cur.version} (val {metric}={old:.4f}) is at least as good "
+                  f"as this run ({new_value:.4f}); alias NOT moved")
+            return False
+    try:
+        client.set_registered_model_alias(registry, "champion", str(version))
+    except Exception as e:  # some hosted MLflow servers are older and have no aliases
+        client.set_model_version_tag(registry, str(version), "champion", "true")
+        print(f"  [warn] server has no model aliases ({type(e).__name__}); tagged champion=true instead")
+    return True
 
 
 def m_val_of(row) -> dict:
@@ -289,6 +337,8 @@ def main():
     ap.add_argument("--n-jobs", type=int, default=-1)
     ap.add_argument("--models", default="", help="comma list, e.g. xgboost,random_forest "
                     "(names: logistic_regression|linear_regression, decision_tree, random_forest, xgboost)")
+    ap.add_argument("--classic-logging", action="store_true",
+                    help="use the classic MLflow model upload (try this if a hosted server rejects the default)")
     ap.add_argument("--no-balance", action="store_true", help="disable class weighting")
     args = ap.parse_args()
 

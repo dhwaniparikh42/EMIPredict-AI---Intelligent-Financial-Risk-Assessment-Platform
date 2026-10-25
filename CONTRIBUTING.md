@@ -39,36 +39,24 @@ Streamlit Cloud redeploys from `main` automatically.
 ---
 ## C. Shared MLflow for a team on different networks (DagsHub, free)
 One hosted server for everyone, so all runs and the model registry are in ONE dashboard.
+**Full step-by-step guide: [docs/DAGSHUB_SETUP.md](docs/DAGSHUB_SETUP.md).**
 
-**Member 1 (once):**
-1. Sign up at https://dagshub.com and **connect the GitHub repo** (New Repository -> Connect a repo ->
-   GitHub). Use a **public** repo: DagsHub's free plan limits *private* repos to very few collaborators.
-2. The repo's MLflow server is at `https://dagshub.com/<dagshub-user>/<repo>.mlflow`
-   (also shown under the repo's "Experiments" tab -> "Remote").
-3. Invite teammates as collaborators on the DagsHub repo (Settings -> Collaborators).
+In short:
+1. Member 1 creates a public repo on dagshub.com (blank, no GitHub connection needed) and adds every
+   teammate as a collaborator. Only collaborators can log runs or open the dashboard.
+2. Everyone creates their own DagsHub token (Settings -> Tokens).
+3. Everyone copies `.env.example` to `.env` and fills in the shared URI
+   (`https://dagshub.com/<user>/<repo>.mlflow`) + their own username + token. `.env` is git-ignored: **never commit it**.
+4. `python check_mlflow.py` must print `[ok] Connected.`, then `python train.py ...` logs to the shared dashboard.
 
-**Every member (once):** DagsHub -> your avatar -> Settings -> **Tokens** -> create a token. Never commit it.
-
-**Every member (each new terminal):**
-```powershell
-$env:MLFLOW_TRACKING_URI      = "https://dagshub.com/<dagshub-user>/<repo>.mlflow"
-$env:MLFLOW_TRACKING_USERNAME = "<your DagsHub username>"
-$env:MLFLOW_TRACKING_PASSWORD = "<your DagsHub token>"
-python check_mlflow.py                       # must print: [ok] Connected.
-python train.py --task classification        # runs now appear in the shared dashboard
-```
-macOS/Linux: use `export NAME="value"` instead of `$env:NAME = "value"`.
-
-Notes
-* Open the dashboard by visiting the `.mlflow` URL in a browser. Models tab = registry.
-* If the server has no model aliases, `train.py` tags the best version `champion=true` instead.
-* **Plan B (no hosted server):** everything is reproducible (fixed seed), so Member 1 can run
-  `python train.py` once locally to produce the MLflow dashboard + registry, and teammates share results
-  through Pull Requests (`reports/model_comparison_*.csv` and `models/best_*.joblib`).
+If the hosted server rejects the default model logging, use `python train.py --classic-logging`.
+**Plan B (no hosted server):** results are reproducible (fixed seed), so Member 1 can run `python train.py`
+once locally for the dashboard + registry, and teammates share results via Pull Requests
+(`reports/model_comparison_*.csv` and `models/best_*.joblib`).
 
 ---
 ## D. Rules
-* Never commit data, tokens, `mlflow.db`, `mlartifacts/`. The CI blocks data/MLflow files.
+* Never commit data, tokens, `.env`, `mlflow.db`, `mlartifacts/`. The CI blocks data/MLflow files.
 * Fit anything learned (scaler / encoder / imputer) on `train` only; tune on `val`; use `test` once.
 * Select classifiers on macro-F1 (imbalanced classes), regressors on RMSE.
 * Commit only `models/best_classifier.joblib` and `models/best_regressor.joblib` (small).

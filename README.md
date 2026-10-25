@@ -3,7 +3,7 @@
 Financial risk assessment: EMI eligibility (classification) + maximum safe EMI (regression),
 tracked with MLflow. This repo covers **data cleaning -> features -> training -> model registry**.
 
-See **CONTRIBUTING.md** for the team workflow, shared MLflow setup and Git rules.
+See **CONTRIBUTING.md** for the team workflow and Git rules, and **docs/DAGSHUB_SETUP.md** for the shared MLflow setup.
 
 ## Layout
 ```

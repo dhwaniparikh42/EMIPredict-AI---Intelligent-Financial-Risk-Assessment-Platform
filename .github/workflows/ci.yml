@@ -29,7 +29,7 @@ jobs:
 
       - name: Guard - no data or MLflow files in the repo
         run: |
-          if git ls-files | grep -E '^(data/(raw|processed)/[^.]|mlflow\.db$|mlartifacts/)'; then
+          if git ls-files | grep -E '^(data/(raw|processed)/[^.]|mlflow\.db$|mlartifacts/|(^|/)\.env$)'; then
             echo "::error::Data / MLflow files must not be committed (see .gitignore)"; exit 1
           fi
 
