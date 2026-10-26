@@ -1,63 +1,29 @@
-# EMIPredict AI: Intelligent Financial Risk Assessment Platform
+# EMIPredict AI
 
-**Project Name:** EMIPredict AI  
+Financial risk assessment: EMI eligibility (classification) + maximum safe EMI (regression),
+tracked with MLflow. This repo covers **data cleaning -> features -> training -> model registry**.
 
-**Authors:** Shahjahan Iqbal, Purva Maurya , Prakhar Singh, Dhwani Parikh, Harsh Bhalodiya
-**Last Updated:** [23 Oct 2026]
+See **CONTRIBUTING.md** for the team workflow and Git rules, and **docs/DAGSHUB_SETUP.md** for the shared MLflow setup.
 
----
-
-## Table of Contents
-
-- [EMIPredict AI: Data Cleaning, Validation & Splits](#emipredict-ai-data-cleaning-validation--splits)
-- [Project Layout](#project-layout)
-- [Run It Locally](#run-it-locally)
-- [What the Pipeline Does](#what-the-pipeline-does)
-- [Using the Data in Your Own Code](#using-the-data-in-your-own-code)
-- [EMIPredict Frontend Integration](#emipredict-frontend-integration)
-  - [What Changed](#what-changed)
-- [Rules for Teammates](#rules-for-teammates)
-- [Pushing to the Shared GitHub Repo](#pushing-to-the-shared-github-repo)
-
----
-
-
-Step 1 of the project: turns the raw 404,800-row EMI dataset into clean,
-validated, leakage-free **train / val / test** files. 
-
-## Project layout
-
+## Layout
 ```
-emipredict-ai/
-├── run_pipeline.py          # one command to run everything
-├── requirements.txt
-├── src/
-│   ├── config.py            # paths, columns, business rules, split ratios, seed
-│   ├── preprocessing.py     # load -> standardise -> clean -> split -> impute -> save
-│   ├── quality.py           # validation rules + before/after report
-│   └── data_loader.py       # load_split("train") helper for teammates
-├── tests/test_pipeline.py
-├── data/raw/                # put emi_prediction_dataset.csv here (git-ignored)
-├── data/processed/          # train/val/test written here (git-ignored)
-├── artifacts/               # imputation_values.json
-└── reports/                 # data_quality_report.md / .json
+run_pipeline.py        # step 1: clean + validate + split data
+start_mlflow_server.py # Member 1: start the shared MLflow server
+check_mlflow.py        # check you can reach the MLflow server
+check_splits.py        # step 1b: verify the split (sizes, leakage, balance)
+train.py               # step 2: train 4 classifiers + 4 regressors, log to MLflow, pick best
+push_to_github.py      # step 3: safe one-command push
+src/  config.py preprocessing.py quality.py data_loader.py features.py
+tests/                 # pytest
+models/                # best_classifier.joblib, best_regressor.joblib (small, committed)
+reports/               # data quality + model comparison reports (committed)
+.vscode/tasks.json     # one-click tasks (Terminal > Run Task)
 ```
 
-## Run it locally
-
-Requires Python 3.9+.
-
+## Quick start
 ```bash
-# 1. get the code
-git clone <your-repo-url>
-cd emipredict-ai
-
-# 2. virtual environment
 python -m venv .venv
-source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
-                                   # Windows cmd:        .venv\Scripts\activate.bat
-
-# 3. dependencies
+.venv\Scripts\activate           # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 
 # 4. put the raw file in place
@@ -136,4 +102,20 @@ git remote add origin https://github.com/<user>/<repo>.git
 git push -u origin main
 ```
 
-For teammates: `git pull`, create `data/raw/`, drop in the CSV, run `python run_pipeline.py`.
+`train.py` options: `--task classification|regression|both`, `--models xgboost,random_forest`,
+`--sample N`, `--no-balance` (turn off class weighting).
+
+## What training does
+* One sklearn `Pipeline` per model: raw columns -> feature engineering (16 ratios/risk scores,
+  e.g. debt-to-income, affordability, EMI-to-disposable-income) -> scale + one-hot -> model.
+  The same object predicts from raw user input, so Streamlit needs no extra preprocessing.
+* Models: Logistic/Linear Regression, Decision Tree, Random Forest, XGBoost.
+* Best model chosen on **validation** (classification: macro-F1, regression: RMSE);
+  **test** metrics are computed once, only for the winner.
+* MLflow logs params, metrics, plots and the model of every run; every model is a version in the
+  registry (`EMI_Eligibility_Classifier`, `EMI_Max_EMI_Regressor`) and the winner gets alias `champion`.
+
+## Teamwork rules
+* Never commit data or `mlflow.db` (git-ignored). Share the CSV through Drive.
+* Work on your own branch: `python push_to_github.py -m "msg" --branch feature/<name>`, then open a Pull Request.
+* Fit anything learned on `train` only. Use `val` to tune; `test` only for the final report.

@@ -1,0 +1,7 @@
+model,accuracy,precision_macro,recall_macro,f1_macro,roc_auc_ovr,train_seconds
+Gradient Boosting,0.9111,0.7585,0.8904,0.781,0.9829,111.0
+XGBoost,0.9018,0.7493,0.8822,0.7685,0.9801,114.3
+Logistic Regression,0.8439,0.7011,0.8112,0.6934,0.9564,11.4
+Random Forest,0.8757,0.6643,0.7392,0.6881,0.948,62.3
+SVC,0.8666,0.6696,0.7561,0.6874,0.9546,59.7
+Decision Tree,0.7895,0.6555,0.7422,0.6344,0.9166,41.3
