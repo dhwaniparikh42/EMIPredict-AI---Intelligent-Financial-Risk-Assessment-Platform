@@ -81,3 +81,16 @@ def test_split_is_disjoint_stratified_and_imputer_uses_train_only():
     assert vals["credit_score"] == pytest.approx(splits["train"]["credit_score"].median())
     final = {k: P.apply_imputer(v, vals) for k, v in splits.items()}
     assert_clean([quality_report(v, k) for k, v in final.items()])
+
+
+def test_feature_engineering_is_finite_and_pipeline_fits():
+    from sklearn.linear_model import LinearRegression
+    from src.features import add_features, build_pipeline
+    std, _ = P.standardize(make_raw(400))
+    clean, _ = P.clean_data(std)
+    fe = add_features(clean)
+    num = fe.select_dtypes("number")
+    assert np.isfinite(num.to_numpy()).all()
+    X = clean.drop(columns=[C.TARGET_CLF, C.TARGET_REG])
+    pipe = build_pipeline(LinearRegression()).fit(X, clean[C.TARGET_REG])
+    assert len(pipe.predict(X.head(5))) == 5
