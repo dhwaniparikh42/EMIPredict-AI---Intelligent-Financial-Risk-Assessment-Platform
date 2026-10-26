@@ -27,3 +27,6 @@ models/*
 !models/best_regressor.joblib
 
 .env
+
+# artifacts
+artifacts/best_regression_model.joblib
