@@ -30,3 +30,5 @@ models/*
 
 # Trained model artifacts
 artifacts/*.joblib
+# artifacts
+artifacts/best_regression_model.joblib
