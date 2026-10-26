@@ -34,8 +34,12 @@ from sklearn.utils.class_weight import compute_sample_weight
 from xgboost import XGBClassifier
 
 # settings
-DATA_DIR = r"C:\Users\dhwan\Downloads"
-OUT_DIR = "outputs"
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+DATA_DIR = PROJECT_ROOT / "data" / "processed"
+OUT_DIR = PROJECT_ROOT / "outputs"
+
 TARGET = "emi_eligibility"
 DROP_COLS = ["max_monthly_emi"]  # regression target -> would leak the answer
 RANDOM_STATE = 42
